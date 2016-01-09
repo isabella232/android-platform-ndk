@@ -29,6 +29,8 @@
 
 MY_NAME=libjpeg
 
+. `dirname $0`/common-build.sh
+
 my_configure() {
     run ./configure --prefix=$INSTALLDIR \
         --host=$HOST \
@@ -82,4 +84,4 @@ my_compiler_setup() {
     export CFLAGS LDFLAGS
 }
 
-. `dirname $0`/common-build.sh
+build_me "$@"

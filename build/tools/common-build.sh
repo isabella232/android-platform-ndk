@@ -28,92 +28,100 @@
 # or implied, of CrystaX.
 
 # include common function and variable definitions
-. `dirname $0`/prebuilt-common.sh
+. `dirname "$0"`/prebuilt-common.sh
 
-MY_SUBDIR=${MY_NAME^^}_SUBDIR
-MY_SUBDIR=${!MY_SUBDIR}
+parse_options() {
+    MY_SUBDIR=${MY_NAME^^}_SUBDIR
+    MY_SUBDIR=${!MY_SUBDIR}
 
-PROGRAM_PARAMETERS="<src-dir>"
+    PROGRAM_PARAMETERS="<src-dir>"
 
-PROGRAM_DESCRIPTION=\
-"Rebuild the prebuilt $MY_NAME binaries for the Android NDK.
+    PROGRAM_DESCRIPTION=\
+    "Rebuild the prebuilt $MY_NAME binaries for the Android NDK.
 
-This requires a temporary NDK installation containing platforms and
-toolchain binaries for all target architectures, as well as the path to
-the corresponding $MY_NAME source tree.
+    This requires a temporary NDK installation containing platforms and
+    toolchain binaries for all target architectures, as well as the path to
+    the corresponding $MY_NAME source tree.
 
-By default, this will try with the current NDK directory, unless
-you use the --ndk-dir=<path> option.
+    By default, this will try with the current NDK directory, unless
+    you use the --ndk-dir=<path> option.
 
-The output will be placed in appropriate sub-directories of
-<ndk>/$MY_SUBDIR, but you can override this with the --out-dir=<path>
-option.
-"
+    The output will be placed in appropriate sub-directories of
+    <ndk>/$MY_SUBDIR, but you can override this with the --out-dir=<path>
+    option.
+    "
 
-PACKAGE_DIR=
-register_var_option "--package-dir=<path>" PACKAGE_DIR "Put prebuilt tarballs into <path>."
+    PACKAGE_DIR=
+    register_var_option "--package-dir=<path>" PACKAGE_DIR "Put prebuilt tarballs into <path>."
 
-NDK_DIR=$ANDROID_NDK_ROOT
-register_var_option "--ndk-dir=<path>" NDK_DIR "Specify NDK root path for the build."
+    NDK_DIR=$ANDROID_NDK_ROOT
+    register_var_option "--ndk-dir=<path>" NDK_DIR "Specify NDK root path for the build."
 
-BUILD_DIR=
-OPTION_BUILD_DIR=
-register_var_option "--build-dir=<path>" OPTION_BUILD_DIR "Specify temporary build dir."
+    BUILD_DIR=
+    OPTION_BUILD_DIR=
+    register_var_option "--build-dir=<path>" OPTION_BUILD_DIR "Specify temporary build dir."
 
-OUT_DIR=
-register_var_option "--out-dir=<path>" OUT_DIR "Specify output directory directly."
+    OUT_DIR=
+    register_var_option "--out-dir=<path>" OUT_DIR "Specify output directory directly."
 
-ABIS=$(spaces_to_commas $PREBUILT_ABIS)
-register_var_option "--abis=<list>" ABIS "Specify list of target ABIs."
+    ABIS=$(spaces_to_commas $PREBUILT_ABIS)
+    register_var_option "--abis=<list>" ABIS "Specify list of target ABIs."
 
-MY_VERSION=
-register_var_option "--version=<ver>" MY_VERSION "Specify $MY_NAME version to build"
+    MY_VERSION=
+    register_var_option "--version=<ver>" MY_VERSION "Specify $MY_NAME version to build"
 
-register_jobs_option
+    register_jobs_option
 
-register_try64_option
+    register_try64_option
 
-extract_parameters "$@"
+    extract_parameters "$@"
 
-MY_SRCDIR=$(echo $PARAMETERS | sed 1q)
-if [ -z "$MY_SRCDIR" ]; then
-    echo "ERROR: Please provide the path to the $MY_NAME source tree. See --help" 1>&2
-    exit 1
-fi
+    MY_SRCDIR=$(echo $PARAMETERS | sed 1q)
+    if [ -z "$MY_SRCDIR" ]; then
+        echo "ERROR: Please provide the path to the $MY_NAME source tree. See --help" 1>&2
+        exit 1
+    fi
 
-if [ ! -d "$MY_SRCDIR" ]; then
-    echo "ERROR: No such directory: '$MY_SRCDIR'" 1>&2
-    exit 1
-fi
+    if [ ! -d "$MY_SRCDIR" ]; then
+        echo "ERROR: No such directory: '$MY_SRCDIR'" 1>&2
+        exit 1
+    fi
 
-if [ -z "$MY_VERSION" ]; then
-    echo "ERROR: Please specify $MY_NAME version" 1>&2
-    exit 1
-fi
+    if [ -z "$MY_VERSION" ]; then
+        echo "ERROR: Please specify $MY_NAME version" 1>&2
+        exit 1
+    fi
 
-GITHASH=$(git -C $MY_SRCDIR rev-parse --verify v$MY_VERSION 2>/dev/null)
-if [ -z "$GITHASH" ]; then
-    echo "ERROR: Can't find tag v$MY_VERSION in $MY_SRCDIR" 1>&2
-    exit 1
-fi
+    GITHASH=$(git -C $MY_SRCDIR rev-parse --verify v$MY_VERSION 2>/dev/null)
+    if [ -z "$GITHASH" ]; then
+        echo "ERROR: Can't find tag v$MY_VERSION in $MY_SRCDIR" 1>&2
+        exit 1
+    fi
 
-MY_DSTDIR=$NDK_DIR/$MY_SUBDIR/$MY_VERSION
-mkdir -p $MY_DSTDIR
-fail_panic "Can't create $MY_NAME-$MY_VERSION destination directory: $MY_DSTDIR"
+    ABIS=$(commas_to_spaces $ABIS)
+}
 
-ABIS=$(commas_to_spaces $ABIS)
+create_destination_directory() {
+    MY_DSTDIR=$NDK_DIR/$MY_SUBDIR/$MY_VERSION
+    mkdir -p $MY_DSTDIR
+    fail_panic "Can't create $MY_NAME-$MY_VERSION destination directory: $MY_DSTDIR"
+}
 
-if [ -z "$OPTION_BUILD_DIR" ]; then
-    BUILD_DIR=$NDK_TMPDIR/build-$MY_NAME
-else
-    eval BUILD_DIR=$OPTION_BUILD_DIR
-fi
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
-fail_panic "Could not create build directory: $BUILD_DIR"
+create_build_directory() {
+    if [ -z "$OPTION_BUILD_DIR" ]; then
+        BUILD_DIR=$NDK_TMPDIR/build-$MY_NAME
+    else
+        eval BUILD_DIR=$OPTION_BUILD_DIR
+    fi
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+    fail_panic "Could not create build directory: $BUILD_DIR"
+}
 
-prepare_target_build
-fail_panic "Could not setup target build"
+do_prepare_target_build() {
+    prepare_target_build
+    fail_panic "Could not setup target build"
+}
 
 # $1: ABI
 # $2: build directory
@@ -249,6 +257,16 @@ setup_cflags_by_abi() {
     esac
 }
 
+my_compiler_setup() {
+    false
+    fail_panic "No my_compiler_setup() given"
+}
+
+my_configure() {
+    false
+    fail_panic "No my_configure() given"
+}
+
 my_make() {
     run make -j$NUM_JOBS
     fail_panic "Can't build $ABI $MY_NAME-$MY_VERSION"
@@ -287,67 +305,85 @@ my_install_libraries() {
     done
 }
 
-if [ -n "$PACKAGE_DIR" ]; then
-    PACKAGE_NAME="$MY_NAME-$MY_VERSION-headers.tar.xz"
-    echo "Look for: $PACKAGE_NAME"
-    try_cached_package "$PACKAGE_DIR" "$PACKAGE_NAME" no_exit
-    if [ $? -eq 0 ]; then
-        MY_HEADERS_NEED_PACKAGE=no
-    else
-        MY_HEADERS_NEED_PACKAGE=yes
-    fi
-fi
-
-BUILT_ABIS=""
-for ABI in $ABIS; do
-    DO_BUILD_PACKAGE=yes
+header_need_package() {
     if [ -n "$PACKAGE_DIR" ]; then
-        PACKAGE_NAME="$MY_NAME-$MY_VERSION-libs-$ABI.tar.xz"
+        PACKAGE_NAME="$MY_NAME-$MY_VERSION-headers.tar.xz"
         echo "Look for: $PACKAGE_NAME"
         try_cached_package "$PACKAGE_DIR" "$PACKAGE_NAME" no_exit
         if [ $? -eq 0 ]; then
-            if [ "$MY_HEADERS_NEED_PACKAGE" = "yes" -a -z "$BUILT_ABIS" ]; then
-                BUILT_ABIS="$BUILT_ABIS $ABI"
-            else
-                DO_BUILD_PACKAGE=no
-            fi
+            MY_HEADERS_NEED_PACKAGE=no
         else
-            BUILT_ABIS="$BUILT_ABIS $ABI"
+            MY_HEADERS_NEED_PACKAGE=yes
         fi
     fi
-    if [ "$DO_BUILD_PACKAGE" = "yes" ]; then
-        build_me_for_abi "$ABI" "$BUILD_DIR/$ABI"
-    fi
-done
+}
 
-# If needed, package files into tarballs
-if [ -n "$PACKAGE_DIR" ]; then
-    if [ "$MY_HEADERS_NEED_PACKAGE" = "yes" ]; then
-        FILES="$MY_SUBDIR/$MY_VERSION/include"
-        PACKAGE_NAME="$MY_NAME-$MY_VERSION-headers.tar.xz"
-        PACKAGE="$PACKAGE_DIR/$PACKAGE_NAME"
-        dump "Packaging: $PACKAGE"
-        pack_archive "$PACKAGE" "$NDK_DIR" "$FILES"
-        fail_panic "Can't package $MY_NAME-$MY_VERSION headers!"
-        cache_package "$PACKAGE_DIR" "$PACKAGE_NAME"
-    fi
-
-    for ABI in $BUILT_ABIS; do
-        FILES="$MY_SUBDIR/$MY_VERSION/libs/$ABI"
-        PACKAGE_NAME="$MY_NAME-$MY_VERSION-libs-$ABI.tar.xz"
-        PACKAGE="$PACKAGE_DIR/$PACKAGE_NAME"
-        dump "Packaging: $PACKAGE"
-        pack_archive "$PACKAGE" "$NDK_DIR" "$FILES"
-        fail_panic "Can't package $ABI $MY_NAME-$MY_VERSION libraries!"
-        cache_package "$PACKAGE_DIR" "$PACKAGE_NAME"
+build_me_for_all_abis() {
+    BUILT_ABIS=""
+    for ABI in $ABIS; do
+        DO_BUILD_PACKAGE=yes
+        if [ -n "$PACKAGE_DIR" ]; then
+            PACKAGE_NAME="$MY_NAME-$MY_VERSION-libs-$ABI.tar.xz"
+            echo "Look for: $PACKAGE_NAME"
+            try_cached_package "$PACKAGE_DIR" "$PACKAGE_NAME" no_exit
+            if [ $? -eq 0 ]; then
+                if [ "$MY_HEADERS_NEED_PACKAGE" = "yes" -a -z "$BUILT_ABIS" ]; then
+                    BUILT_ABIS="$BUILT_ABIS $ABI"
+                else
+                    DO_BUILD_PACKAGE=no
+                fi
+            else
+                BUILT_ABIS="$BUILT_ABIS $ABI"
+            fi
+        fi
+        if [ "$DO_BUILD_PACKAGE" = "yes" ]; then
+            build_me_for_abi "$ABI" "$BUILD_DIR/$ABI"
+        fi
     done
-fi
+}
 
-if [ -z "$OPTION_BUILD_DIR" ]; then
-    log "Cleaning up..."
-    rm -Rf $BUILD_DIR
-else
-    log "Don't forget to cleanup: $BUILD_DIR"
-fi
+package_into_tarballs() {
+    # If needed, package files into tarballs
+    if [ -n "$PACKAGE_DIR" ]; then
+        if [ "$MY_HEADERS_NEED_PACKAGE" = "yes" ]; then
+            FILES="$MY_SUBDIR/$MY_VERSION/include"
+            PACKAGE_NAME="$MY_NAME-$MY_VERSION-headers.tar.xz"
+            PACKAGE="$PACKAGE_DIR/$PACKAGE_NAME"
+            dump "Packaging: $PACKAGE"
+            pack_archive "$PACKAGE" "$NDK_DIR" "$FILES"
+            fail_panic "Can't package $MY_NAME-$MY_VERSION headers!"
+            cache_package "$PACKAGE_DIR" "$PACKAGE_NAME"
+        fi
 
-log "Done!"
+        for ABI in $BUILT_ABIS; do
+            FILES="$MY_SUBDIR/$MY_VERSION/libs/$ABI"
+            PACKAGE_NAME="$MY_NAME-$MY_VERSION-libs-$ABI.tar.xz"
+            PACKAGE="$PACKAGE_DIR/$PACKAGE_NAME"
+            dump "Packaging: $PACKAGE"
+            pack_archive "$PACKAGE" "$NDK_DIR" "$FILES"
+            fail_panic "Can't package $ABI $MY_NAME-$MY_VERSION libraries!"
+            cache_package "$PACKAGE_DIR" "$PACKAGE_NAME"
+        done
+    fi
+}
+
+cleanup() {
+    if [ -z "$OPTION_BUILD_DIR" ]; then
+        log "Cleaning up..."
+        rm -Rf $BUILD_DIR
+    else
+        log "Don't forget to cleanup: $BUILD_DIR"
+    fi
+}
+
+build_me() {
+    parse_options "$@"
+    create_destination_directory
+    create_build_directory
+    do_prepare_target_build
+    header_need_package
+    build_me_for_all_abis
+    package_into_tarballs
+    cleanup
+    log "Done!"
+}
